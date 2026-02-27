@@ -3,3 +3,5 @@ dist/
 *.tgz
 *.js.map
 *.d.ts.map
+DEPLOIEMENT_matterbridge-mqtt.md
+matterbridge-mqtt-test.flow.json

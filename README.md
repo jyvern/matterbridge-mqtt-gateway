@@ -1,4 +1,4 @@
-# matterbridge-mqtt
+# matterbridge-mqtt-gateway
 
 > Plugin [Matterbridge](https://github.com/Luligu/matterbridge) qui expose des **topics MQTT comme des appareils Matter virtuels**.
 
@@ -9,7 +9,7 @@ Idéal pour piloter des équipements via **Node-RED** (ou tout autre client MQTT
 ## Fonctionnement
 
 ```
-[Matter Controller]          [matterbridge-mqtt]           [MQTT Broker]         [Node-RED]
+[Matter Controller]          [matterbridge-mqtt-gateway]           [MQTT Broker]         [Node-RED]
   Apple Home      ──ON──►   commandTopic publish  ──►   home/plug1/set   ──►  mqtt-in node
   Google Home     ◄──ON──   stateTopic subscribe  ◄──   home/plug1/state ◄──  mqtt-out node
 ```
@@ -40,27 +40,27 @@ Le plugin joue un **double rôle** :
 ```bash
 # Dans votre répertoire Matterbridge
 cd ~/Matterbridge
-npm install -g /chemin/vers/matterbridge-mqtt
-matterbridge -add matterbridge-mqtt
+npm install -g /chemin/vers/matterbridge-mqtt-gateway
+matterbridge -add matterbridge-mqtt-gateway
 matterbridge
 ```
 
 Ou en développement local :
 
 ```bash
-git clone <repo> matterbridge-mqtt
-cd matterbridge-mqtt
+git clone <repo> matterbridge-mqtt-gateway
+cd matterbridge-mqtt-gateway
 npm install
 npm run build
 npm link
-matterbridge -add matterbridge-mqtt
+matterbridge -add matterbridge-mqtt-gateway
 ```
 
 ---
 
 ## Configuration
 
-Éditez la config via le **frontend Matterbridge** (recommandé) ou directement dans `~/.matterbridge/matterbridge-mqtt.config.json`.
+Éditez la config via le **frontend Matterbridge** (recommandé) ou directement dans `~/.matterbridge/matterbridge-mqtt-gateway.config.json`.
 
 ### Paramètres globaux
 
@@ -101,7 +101,7 @@ matterbridge -add matterbridge-mqtt
 
 ```json
 {
-  "name": "matterbridge-mqtt",
+  "name": "matterbridge-mqtt-gateway",
   "host": "mqtt://192.168.1.10",
   "port": 1883,
   "username": "user",
