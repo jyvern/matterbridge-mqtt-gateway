@@ -1,0 +1,43 @@
+{
+  "name": "matterbridge-mqtt-gateway",
+  "version": "1.0.0",
+  "description": "Matterbridge dynamic platform plugin — expose MQTT topics as Matter devices (outlet, switch, light, sensors, cover, stove)",
+  "author": "Your Name",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "lint": "eslint src --ext .ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "matterbridge",
+    "matterbridge-plugin",
+    "matter",
+    "mqtt",
+    "iot",
+    "smarthome",
+    "gateway"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "mqtt": "latest"
+  },
+  "devDependencies": {
+    "typescript": "latest",
+    "@types/node": "latest"
+  },
+  "matterbridge": {
+    "name": "matterbridge-mqtt-gateway",
+    "version": "1.0.0",
+    "description": "Expose MQTT topics as Matter devices",
+    "author": "Your Name",
+    "type": "DynamicPlatform",
+    "latestVersion": "1.0.0"
+  }
+}

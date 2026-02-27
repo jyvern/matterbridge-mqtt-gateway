@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "matterbridge-mqtt-gateway",
+  "description": "Matterbridge MQTT Gateway plugin configuration",
+  "type": "object",
+  "properties": {
+    "name": {
+      "description": "Plugin name",
+      "type": "string"
+    },
+    "type": {
+      "description": "Plugin type",
+      "type": "string"
+    },
+    "broker": {
+      "description": "MQTT broker URL (e.g. mqtt://192.168.1.10:1883)",
+      "type": "string",
+      "default": "mqtt://localhost:1883"
+    },
+    "username": {
+      "description": "MQTT username",
+      "type": "string"
+    },
+    "password": {
+      "description": "MQTT password",
+      "type": "string"
+    },
+    "devices": {
+      "description": "List of MQTT devices to expose as Matter devices",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "Unique device identifier",
+            "type": "string"
+          },
+          "name": {
+            "description": "Device display name",
+            "type": "string"
+          },
+          "type": {
+            "description": "Device type",
+            "type": "string",
+            "enum": ["light", "outlet", "switch", "temperature", "humidity", "contact", "motion", "fan", "cover", "stove"]
+          },
+          "stateTopic": {
+            "description": "MQTT topic to subscribe for device state",
+            "type": "string"
+          },
+          "commandTopic": {
+            "description": "MQTT topic to publish commands (not needed for sensors)",
+            "type": "string"
+          },
+          "payloadOn": {
+            "description": "Payload for ON state (default: ON)",
+            "type": "string",
+            "default": "ON"
+          },
+          "payloadOff": {
+            "description": "Payload for OFF state (default: OFF)",
+            "type": "string",
+            "default": "OFF"
+          },
+          "payloadOpen": {
+            "description": "[cover] Payload pour ouvrir le volet (default: OPEN)",
+            "type": "string",
+            "default": "OPEN"
+          },
+          "payloadClosed": {
+            "description": "[cover] Payload pour fermer le volet (default: CLOSE)",
+            "type": "string",
+            "default": "CLOSE"
+          },
+          "payloadStop": {
+            "description": "[cover] Payload pour stopper le volet (default: STOP)",
+            "type": "string",
+            "default": "STOP"
+          },
+          "positionStateTopic": {
+            "description": "[cover] Topic MQTT recevant la position en % (0=ouvert, 100=fermé)",
+            "type": "string"
+          },
+          "positionCommandTopic": {
+            "description": "[cover] Topic MQTT pour envoyer une position cible en % (0–100)",
+            "type": "string"
+          },
+          "speedStateTopic": {
+            "description": "[stove] Topic MQTT recevant la puissance actuelle (0–5)",
+            "type": "string"
+          },
+          "speedCommandTopic": {
+            "description": "[stove] Topic MQTT pour envoyer une puissance absolue (0–5)",
+            "type": "string"
+          },
+          "speedStepTopic": {
+            "description": "[stove] Topic MQTT pour envoyer un incrément de puissance (+1 ou -1)",
+            "type": "string"
+          },
+          "fanSpeedStateTopic": {
+            "description": "[stove] Topic MQTT recevant la soufflerie actuelle (0–5, lecture seule)",
+            "type": "string"
+          },
+          "fanSpeedStepTopic": {
+            "description": "[stove] Topic MQTT pour envoyer un incrément de soufflerie (+1 ou -1)",
+            "type": "string"
+          },
+          "speedMin": {
+            "description": "[stove] Valeur minimale de puissance (défaut: 0)",
+            "type": "number",
+            "default": 0
+          },
+          "speedMax": {
+            "description": "[stove] Valeur maximale de puissance et soufflerie (défaut: 5)",
+            "type": "number",
+            "default": 5
+          }
+        },
+        "required": ["id", "name", "type", "stateTopic"]
+      }
+    }
+  },
+  "required": []
+}
