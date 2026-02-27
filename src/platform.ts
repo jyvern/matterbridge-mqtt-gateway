@@ -15,7 +15,7 @@ import {
   temperatureSensor,
   humiditySensor,
   occupancySensor,
-  windowCovering,
+  coverDevice,
   fanDevice,
   powerSource,
   getAttribute,
@@ -477,7 +477,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     // Alias courants pour l'état fermé reçu en retour du broker
     const CLOSED_ALIASES = [CLOSE.toUpperCase(), 'CLOSED', 'CLOSE'];
 
-    const ep = new MatterbridgeEndpoint([windowCovering, powerSource]);
+    const ep = new MatterbridgeEndpoint([coverDevice, powerSource]);
     this.initEp(ep, cfg, 0x8008);
     ep.createDefaultWindowCoveringClusterServer();
 

@@ -13,6 +13,8 @@ declare module 'matterbridge' {
     createDefaultTemperatureMeasurementClusterServer(value: number): void;
     createDefaultRelativeHumidityMeasurementClusterServer(value: number): void;
     createDefaultOccupancySensingClusterServer(): void;
+    createDefaultWindowCoveringClusterServer(): void;
+    createDefaultFanControlClusterServer(fanMode?: number, fanModeSequence?: number, percentSetting?: number): void;
     addCommandHandler(cmd: string, handler: (data: any) => void | Promise<void>): void;
     [key: string]: any;
   }
@@ -35,6 +37,8 @@ declare module 'matterbridge' {
   export const temperatureSensor: any;
   export const humiditySensor: any;
   export const occupancySensor: any;
+  export const coverDevice: any;
+  export const fanDevice: any;
   export const powerSource: any;
 
   export function getAttribute(ep: MatterbridgeEndpoint, clusterId: any, attr: string, log: any): any;
