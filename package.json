@@ -34,11 +34,11 @@
   },
   "matterbridge": {
     "name": "matterbridge-mqtt-gateway",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Expose MQTT topics as Matter devices",
     "author": "Jean-Yves VERN",
     "type": "DynamicPlatform",
-    "latestVersion": "1.0.0"
+    "latestVersion": "1.0.1"
   },
   "repository": {
     "type": "git",

@@ -136,24 +136,23 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
   // ── MQTT ───────────────────────────────────────────────────────────────────
 
   private async connectMqtt(): Promise<void> {
-    const host     = (this.config['host']     as string) ?? 'mqtt://localhost';
-    const port     = (this.config['port']     as number) ?? 1883;
+    const broker   = (this.config['broker']   as string) ?? 'mqtt://localhost:1883';
     const username = (this.config['username'] as string) ?? '';
     const password = (this.config['password'] as string) ?? '';
     const clientId = (this.config['clientId'] as string) ??
                      `mb_mqtt_${Math.random().toString(16).slice(2, 8)}`;
 
     const opts: IClientOptions = {
-      port, clientId,
+      clientId,
       clean: true, reconnectPeriod: 5000, connectTimeout: 10_000,
     };
     if (username) opts.username = username;
     if (password) opts.password = password;
 
-    this.log.info(`MQTT → ${host}:${port} [${clientId}]`);
+    this.log.info(`MQTT → ${broker} [${clientId}]`);
 
     return new Promise((resolve, reject) => {
-      this.mqttClient = mqtt.connect(host, opts);
+      this.mqttClient = mqtt.connect(broker, opts);
       this.mqttClient.once('connect', () => { this.log.info('MQTT connected ✓'); resolve(); });
       this.mqttClient.once('error',   (e) => { this.log.error(`MQTT error: ${e.message}`); reject(e); });
       this.mqttClient.on('reconnect', ()  => this.log.warn('MQTT reconnecting…'));
