@@ -1,0 +1,11 @@
+# Fichiers de développement exclus de npm
+*.tgz
+*.js.map
+*.d.ts.map
+.gitignore
+.npmignore
+tsconfig.json
+
+# Ces dossiers sont inclus (ne pas les lister ici)
+# dist/   ← inclus
+# src/    ← inclus
