@@ -585,7 +585,8 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
 
     const ep = new MatterbridgeEndpoint([fanDevice, powerSource]);
     this.initEp(ep, cfg, 0x8009);
-    ep.createDefaultFanControlClusterServer(0, 0, 0);
+    // FanMode 0=Off 4=On — FanModeSequence 5=OffHigh (valide sans mode Auto)
+    ep.createDefaultFanControlClusterServer(0, 5, 0);
     ep.createDefaultOnOffClusterServer();
 
     // ── État interne (évite les boucles publish ↔ subscribe) ───────────────
