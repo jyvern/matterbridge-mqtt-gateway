@@ -580,13 +580,20 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
       Math.round(Math.max(0, Math.min(1, (lv - SPD_MIN) / (SPD_MAX - SPD_MIN))) * 100);
     const pctToSpd = (pct: number): number =>
       Math.round((Math.max(0, Math.min(100, pct)) / 100) * (SPD_MAX - SPD_MIN) + SPD_MIN);
-    const fanToPct = (lv: number): number =>
-      Math.round(Math.max(FAN_MIN, Math.min(FAN_MAX, lv)) / FAN_MAX * 100);
 
     const ep = new MatterbridgeEndpoint([fanDevice, powerSource]);
     this.initEp(ep, cfg, 0x8009);
-    // FanMode 0=Off — FanModeSequence 2=OffLowMedHighAuto (requis par MatterbridgeFanControlServer)
-    ep.createDefaultFanControlClusterServer();
+    // MultiSpeed : percentSetting (0–100%) ↔ puissance granulés
+    //              speedSetting   (0–5)    ↔ vitesse ventilateur
+    ep.createMultiSpeedFanControlClusterServer(
+      0,    // fanMode    : Off
+      2,    // fanModeSequence : OffLowMedHighAuto (requis par MultiSpeed+Auto+Step)
+      0,    // percentSetting : puissance initiale 0%
+      0,    // percentCurrent
+      FAN_MAX, // speedMax : 5
+      0,    // speedSetting : soufflerie initiale 0
+      0,    // speedCurrent
+    );
     ep.createDefaultOnOffClusterServer();
 
     // ── État interne (évite les boucles publish ↔ subscribe) ───────────────
@@ -605,31 +612,15 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
       if (cfg.commandTopic) this.publish(cfg.commandTopic, OFF, cfg.retain);
     });
 
-    // FanControl.step → puissance par pas de 1 (direction 0=increase, 1=decrease)
-    ep.addCommandHandler('step', async (data: any) => {
-      const increase: boolean = (data?.request?.direction ?? 0) === 0;
-      const newSpeed = Math.max(SPD_MIN, Math.min(SPD_MAX, currentSpeed + (increase ? 1 : -1)));
-      if (newSpeed === currentSpeed) {
-        this.log.info(`[${cfg.name}] → puissance déjà à la limite (${currentSpeed})`);
-        return;
-      }
-      currentSpeed = newSpeed;
-      this.log.info(`[${cfg.name}] → puissance ${increase ? '+1' : '-1'} → ${newSpeed}`);
-      if (cfg.speedStepTopic)
-        this.publish(cfg.speedStepTopic, increase ? '+1' : '-1', cfg.retain);
-      if (cfg.speedCommandTopic)
-        this.publish(cfg.speedCommandTopic, String(newSpeed), cfg.retain);
-      this.setAttr(ep, CID.FanControl, 'percentSetting', spdToPct(newSpeed));
-    });
-
-    // percentSetting modifié directement (slider dans une app) → puissance absolue
-    ep.addCommandHandler('changeSpeed', async (data: any) => {
-      const pct: number = data?.request?.newFanMode ?? data?.attributes?.percentSetting ?? 0;
-      const newSpeed = pctToSpd(pct);
+    // percentSetting changé (slider Google Home ou commande step gérée par MatterbridgeFanControlServer)
+    // MatterbridgeFanControlServer met à jour percentCurrent en interne (steps de 10%)
+    // On écoute percentSetting pour convertir en niveau 0–5 et publier sur MQTT
+    ep.subscribeAttribute(CID.FanControl, 'percentSetting', (newPct: number, oldPct: number) => {
+      const newSpeed = pctToSpd(newPct);
       if (newSpeed === currentSpeed) return;
       const prevSpeed = currentSpeed;
       currentSpeed = newSpeed;
-      this.log.info(`[${cfg.name}] → puissance absolue ${newSpeed} (${pct}%)`);
+      this.log.info(`[${cfg.name}] → puissance ${newSpeed} (${newPct}%)`);
       if (cfg.speedCommandTopic)
         this.publish(cfg.speedCommandTopic, String(newSpeed), cfg.retain);
       if (cfg.speedStepTopic) {
@@ -637,7 +628,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
         if (delta !== 0)
           this.publish(cfg.speedStepTopic, delta > 0 ? '+1' : '-1', cfg.retain);
       }
-    });
+    }, this.log);
 
     // stepFanSpeed → soufflerie par pas de 1 uniquement (pas de valeur absolue)
     ep.addCommandHandler('stepFanSpeed', async (data: any) => {
@@ -652,8 +643,22 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
       if (cfg.fanSpeedStepTopic)
         this.publish(cfg.fanSpeedStepTopic, increase ? '+1' : '-1', cfg.retain);
       // fanSpeedCommandTopic : lecture seule, jamais publié en commande
-      this.setAttr(ep, CID.FanControl, 'speedSetting', fanToPct(newFan));
+      this.setAttr(ep, CID.FanControl, 'speedSetting', newFan);
     });
+
+    // speedSetting changé (slider soufflerie dans Google Home)
+    ep.subscribeAttribute(CID.FanControl, 'speedSetting', (newVal: number, oldVal: number) => {
+      const newFan = Math.max(FAN_MIN, Math.min(FAN_MAX, Math.round(newVal)));
+      if (newFan === currentFan) return;
+      const prevFan = currentFan;
+      currentFan = newFan;
+      this.log.info(`[${cfg.name}] → soufflerie ${newFan} (raw: ${newVal})`);
+      if (cfg.fanSpeedStepTopic) {
+        const delta = newFan - prevFan;
+        if (delta !== 0)
+          this.publish(cfg.fanSpeedStepTopic, delta > 0 ? '+1' : '-1', cfg.retain);
+      }
+    }, this.log);
 
     // ── États MQTT → Matter ────────────────────────────────────────────────
 
@@ -689,7 +694,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
         }
         if (fan !== null && !isNaN(fan)) {
           currentFan = Math.max(FAN_MIN, Math.min(FAN_MAX, Math.round(fan)));
-          this.setAttr(ep, CID.FanControl, 'speedSetting', fanToPct(currentFan));
+          this.setAttr(ep, CID.FanControl, 'speedSetting', currentFan);
           this.log.info(`[${cfg.name}] ← soufflerie ${currentFan}`);
         }
       });
@@ -714,7 +719,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
         if (!isNaN(lv)) {
           currentFan = Math.max(FAN_MIN, Math.min(FAN_MAX, Math.round(lv)));
           this.log.info(`[${cfg.name}] ← soufflerie ${currentFan}`);
-          this.setAttr(ep, CID.FanControl, 'speedSetting', fanToPct(currentFan));
+          this.setAttr(ep, CID.FanControl, 'speedSetting', currentFan);
         }
       });
     }
