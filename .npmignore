@@ -1,4 +1,6 @@
 # Fichiers de développement exclus de npm
+DEPLOIEMENT_matterbridge-mqtt.md
+matterbridge-mqtt-test.flow.json
 *.tgz
 *.js.map
 *.d.ts.map
