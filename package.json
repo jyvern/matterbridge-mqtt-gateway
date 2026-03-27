@@ -1,6 +1,6 @@
 {
   "name": "matterbridge-mqtt-gateway",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Matterbridge dynamic platform plugin — expose MQTT topics as Matter devices (outlet, switch, light, sensors, cover, stove)",
   "author": "Jean-Yves VERN <jyv@ik.me>",
   "license": "MIT",
@@ -34,15 +34,15 @@
   },
   "matterbridge": {
     "name": "matterbridge-mqtt-gateway",
-    "version": "1.0.11",
+    "version": "1.0.12",
     "description": "Expose MQTT topics as Matter devices",
     "author": "Jean-Yves VERN",
     "type": "DynamicPlatform",
-    "latestVersion": "1.0.11"
+    "latestVersion": "1.0.12"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/jyvern/matterbridge-mqtt-gateway.git"
+    "url": "git+https://github.com/jyvern/matterbridge-mqtt-gateway.git"
   },
   "homepage": "https://github.com/jyvern/matterbridge-mqtt-gateway",
   "bugs": {

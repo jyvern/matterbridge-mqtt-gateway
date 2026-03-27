@@ -429,7 +429,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
         let c: number | null = null;
         try {
           const o = JSON.parse(p) as Record<string, unknown>;
-          c = parseFloat(String(o['temperature'] ?? o['temp'] ?? o['value'] ?? ''));
+          c = parseFloat(String(o['temperature'] ?? o['temp'] ?? o['value'] ?? o ?? ''));
         } catch { c = parseFloat(p); }
         if (c !== null && !isNaN(c)) {
           this.log.info(`[${cfg.name}] ← ${c}°C`);
@@ -455,7 +455,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
         let h: number | null = null;
         try {
           const o = JSON.parse(p) as Record<string, unknown>;
-          h = parseFloat(String(o['humidity'] ?? o['value'] ?? ''));
+          h = parseFloat(String(o['humidity'] ?? o['value'] ?? o ?? ''));
         } catch { h = parseFloat(p); }
         if (h !== null && !isNaN(h)) {
           this.log.info(`[${cfg.name}] ← ${h}%`);
