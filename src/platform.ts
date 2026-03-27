@@ -17,6 +17,8 @@ import {
   occupancySensor,
   coverDevice,
   fanDevice,
+  aggregator,
+  bridgedNode,
   powerSource,
   getAttribute,
   setAttribute,
@@ -427,7 +429,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
         let c: number | null = null;
         try {
           const o = JSON.parse(p) as Record<string, unknown>;
-          c = parseFloat(String(o['temperature'] ?? o['temp'] ?? o['value'] ?? o ?? ''));
+          c = parseFloat(String(o['temperature'] ?? o['temp'] ?? o['value'] ?? ''));
         } catch { c = parseFloat(p); }
         if (c !== null && !isNaN(c)) {
           this.log.info(`[${cfg.name}] ← ${c}°C`);
@@ -453,7 +455,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
         let h: number | null = null;
         try {
           const o = JSON.parse(p) as Record<string, unknown>;
-          h = parseFloat(String(o['humidity'] ?? o['value'] ?? o ?? ''));
+          h = parseFloat(String(o['humidity'] ?? o['value'] ?? ''));
         } catch { h = parseFloat(p); }
         if (h !== null && !isNaN(h)) {
           this.log.info(`[${cfg.name}] ← ${h}%`);
@@ -554,107 +556,91 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     this.log.info(`✓ cover \"${cfg.name}\"`);
   }
 
-  // ── Poêle à granulés (Fan device) ─────────────────────────────────────────
+  // ── Poêle à granulés (Composite device) ───────────────────────────────────
   //
-  // Mapping Matter ↔ MQTT :
-  //   FanControl.percentSetting  (0–100 %) ←→ puissance  (0–5, pas de 1, absolu + incrément)
-  //   FanControl.speedSetting    (0–100 %) ←→ soufflerie (0–5, incrément uniquement)
-  //   OnOff.onOff                          ←→ marche / arrêt
+  // Architecture Matter :
+  //   Endpoint racine  : aggregator
+  //   Child "switch"   : onOffSwitch  → marche / arrêt
+  //   Child "puissance": fanDevice    → puissance granulés (0–5, percentSetting 0–100%)
+  //   Child "soufflerie": fanDevice   → vitesse ventilateur (0–5, percentSetting 0–100%)
   //
   // Conversions :
-  //   puissance  → pct = round((lv - SPD_MIN) / (SPD_MAX - SPD_MIN) * 100)
-  //   soufflerie → pct = round(lv / FAN_MAX * 100)   (FAN_MIN = 0 fixe)
+  //   niveau (0–5) → pct = round(niveau / MAX * 100)
+  //   pct → niveau = round(pct / 100 * MAX)
 
   private async createStove(cfg: MqttDeviceConfig): Promise<void> {
     const ON      = cfg.payloadOn  ?? 'ON';
     const OFF     = cfg.payloadOff ?? 'OFF';
-    // Puissance : 1–5 (configurable)
-    const SPD_MIN = cfg.speedMin ?? 0;
     const SPD_MAX = cfg.speedMax ?? 5;
-    // Soufflerie : 0–5 (fixe — pas de valeur absolue en commande)
-    const FAN_MIN = 0;
     const FAN_MAX = 5;
 
-    // Helpers de conversion
-    const spdToPct = (lv: number): number =>
-      Math.round(Math.max(0, Math.min(1, (lv - SPD_MIN) / (SPD_MAX - SPD_MIN))) * 100);
-    const pctToSpd = (pct: number): number =>
-      Math.round((Math.max(0, Math.min(100, pct)) / 100) * (SPD_MAX - SPD_MIN) + SPD_MIN);
+    // Conversions niveau ↔ pourcentage Matter
+    const lvToPct = (lv: number, max: number): number =>
+      Math.round(Math.max(0, Math.min(max, lv)) / max * 100);
+    const pctToLv = (pct: number, max: number): number =>
+      Math.round(Math.max(0, Math.min(100, pct)) / 100 * max);
 
-    const ep = new MatterbridgeEndpoint([fanDevice, powerSource]);
+    // ── Endpoint racine (aggregator) ────────────────────────────────────────
+    const ep = new MatterbridgeEndpoint([aggregator, powerSource]);
     this.initEp(ep, cfg, 0x8009);
-    // MultiSpeed : percentSetting (0–100%) ↔ puissance granulés
-    //              speedSetting   (0–5)    ↔ vitesse ventilateur
-    ep.createMultiSpeedFanControlClusterServer(
-      0,    // fanMode    : Off
-      2,    // fanModeSequence : OffLowMedHighAuto (requis par MultiSpeed+Auto+Step)
-      0,    // percentSetting : puissance initiale 0%
-      0,    // percentCurrent
-      FAN_MAX, // speedMax : 5
-      0,    // speedSetting : soufflerie initiale 0
-      0,    // speedCurrent
+
+    // ── Child 1 : switch (marche/arrêt) ─────────────────────────────────────
+    const swChild = ep.addChildDeviceTypeWithClusterServer(
+      `${cfg.id}-switch`,
+      onOffSwitch,
+      [CID.OnOff],
     );
-    ep.createDefaultOnOffClusterServer();
 
-    // ── État interne (évite les boucles publish ↔ subscribe) ───────────────
-    let currentSpeed = SPD_MIN;  // puissance  0–5
-    let currentFan   = FAN_MIN;  // soufflerie 0–5
-
-    // ── Commandes Matter → MQTT ────────────────────────────────────────────
-
-    // Marche / Arrêt
-    this.onCmd(ep, 'on', async () => {
+    swChild.addCommandHandler('on', async () => {
       this.log.info(`[${cfg.name}] → MARCHE`);
       if (cfg.commandTopic) this.publish(cfg.commandTopic, ON, cfg.retain);
     });
-    this.onCmd(ep, 'off', async () => {
+    swChild.addCommandHandler('off', async () => {
       this.log.info(`[${cfg.name}] → ARRÊT`);
       if (cfg.commandTopic) this.publish(cfg.commandTopic, OFF, cfg.retain);
     });
 
-    // percentSetting changé (slider Google Home ou commande step gérée par MatterbridgeFanControlServer)
-    // MatterbridgeFanControlServer met à jour percentCurrent en interne (steps de 10%)
-    // On écoute percentSetting pour convertir en niveau 0–5 et publier sur MQTT
-    ep.subscribeAttribute(CID.FanControl, 'percentSetting', (newPct: number, oldPct: number) => {
-      const newSpeed = pctToSpd(newPct);
+    // ── Child 2 : fan puissance (granulés) ──────────────────────────────────
+    const spdChild = ep.addChildDeviceTypeWithClusterServer(
+      `${cfg.id}-puissance`,
+      fanDevice,
+      [CID.FanControl],
+    );
+    spdChild.createDefaultFanControlClusterServer();
+
+    let currentSpeed = 0;
+    spdChild.subscribeAttribute(CID.FanControl, 'percentSetting', (newPct: number) => {
+      const newSpeed = pctToLv(newPct, SPD_MAX);
       if (newSpeed === currentSpeed) return;
-      const prevSpeed = currentSpeed;
+      const prev = currentSpeed;
       currentSpeed = newSpeed;
       this.log.info(`[${cfg.name}] → puissance ${newSpeed} (${newPct}%)`);
       if (cfg.speedCommandTopic)
         this.publish(cfg.speedCommandTopic, String(newSpeed), cfg.retain);
       if (cfg.speedStepTopic) {
-        const delta = newSpeed - prevSpeed;
+        const delta = newSpeed - prev;
         if (delta !== 0)
           this.publish(cfg.speedStepTopic, delta > 0 ? '+1' : '-1', cfg.retain);
       }
     }, this.log);
 
-    // stepFanSpeed → soufflerie par pas de 1 uniquement (pas de valeur absolue)
-    ep.addCommandHandler('stepFanSpeed', async (data: any) => {
-      const increase: boolean = (data?.request?.direction ?? 0) === 0;
-      const newFan = Math.max(FAN_MIN, Math.min(FAN_MAX, currentFan + (increase ? 1 : -1)));
-      if (newFan === currentFan) {
-        this.log.info(`[${cfg.name}] → soufflerie déjà à la limite (${currentFan})`);
-        return;
-      }
-      currentFan = newFan;
-      this.log.info(`[${cfg.name}] → soufflerie ${increase ? '+1' : '-1'} → ${newFan}`);
-      if (cfg.fanSpeedStepTopic)
-        this.publish(cfg.fanSpeedStepTopic, increase ? '+1' : '-1', cfg.retain);
-      // fanSpeedCommandTopic : lecture seule, jamais publié en commande
-      this.setAttr(ep, CID.FanControl, 'speedSetting', newFan);
-    });
+    // ── Child 3 : fan soufflerie (ventilateur) ──────────────────────────────
+    const fanChild = ep.addChildDeviceTypeWithClusterServer(
+      `${cfg.id}-soufflerie`,
+      fanDevice,
+      [CID.FanControl],
+    );
+    fanChild.createDefaultFanControlClusterServer();
 
-    // speedSetting changé (slider soufflerie dans Google Home)
-    ep.subscribeAttribute(CID.FanControl, 'speedSetting', (newVal: number, oldVal: number) => {
-      const newFan = Math.max(FAN_MIN, Math.min(FAN_MAX, Math.round(newVal)));
+    let currentFan = 0;
+    fanChild.subscribeAttribute(CID.FanControl, 'percentSetting', (newPct: number) => {
+      const newFan = pctToLv(newPct, FAN_MAX);
       if (newFan === currentFan) return;
-      const prevFan = currentFan;
+      const prev = currentFan;
       currentFan = newFan;
-      this.log.info(`[${cfg.name}] → soufflerie ${newFan} (raw: ${newVal})`);
+      this.log.info(`[${cfg.name}] → soufflerie ${newFan} (${newPct}%)`);
       if (cfg.fanSpeedStepTopic) {
-        const delta = newFan - prevFan;
+        const delta = newFan - prev;
         if (delta !== 0)
           this.publish(cfg.fanSpeedStepTopic, delta > 0 ? '+1' : '-1', cfg.retain);
       }
@@ -684,52 +670,51 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
 
         if (power !== null) {
           this.log.info(`[${cfg.name}] ← ${power ? 'MARCHE' : 'ARRÊT'}`);
-          this.setAttr(ep, CID.OnOff, 'onOff', power);
-          this.setAttr(ep, CID.FanControl, 'fanMode', power ? 4 : 0);
+          this.setAttr(swChild, CID.OnOff, 'onOff', power);
         }
         if (speed !== null && !isNaN(speed)) {
-          currentSpeed = Math.max(SPD_MIN, Math.min(SPD_MAX, Math.round(speed)));
-          this.setAttr(ep, CID.FanControl, 'percentSetting', spdToPct(currentSpeed));
+          currentSpeed = Math.max(0, Math.min(SPD_MAX, Math.round(speed)));
+          this.setAttr(spdChild, CID.FanControl, 'percentSetting', lvToPct(currentSpeed, SPD_MAX));
           this.log.info(`[${cfg.name}] ← puissance ${currentSpeed}`);
         }
         if (fan !== null && !isNaN(fan)) {
-          currentFan = Math.max(FAN_MIN, Math.min(FAN_MAX, Math.round(fan)));
-          this.setAttr(ep, CID.FanControl, 'speedSetting', currentFan);
+          currentFan = Math.max(0, Math.min(FAN_MAX, Math.round(fan)));
+          this.setAttr(fanChild, CID.FanControl, 'percentSetting', lvToPct(currentFan, FAN_MAX));
           this.log.info(`[${cfg.name}] ← soufflerie ${currentFan}`);
         }
       });
     }
 
-    // Topic puissance dédié (valeur brute 1–5)
+    // Topic puissance dédié (valeur brute 0–5)
     if (cfg.speedStateTopic) {
       this.subscribe(cfg.speedStateTopic, (p) => {
         const lv = parseFloat(p);
         if (!isNaN(lv)) {
-          currentSpeed = Math.max(SPD_MIN, Math.min(SPD_MAX, Math.round(lv)));
+          currentSpeed = Math.max(0, Math.min(SPD_MAX, Math.round(lv)));
           this.log.info(`[${cfg.name}] ← puissance ${currentSpeed}`);
-          this.setAttr(ep, CID.FanControl, 'percentSetting', spdToPct(currentSpeed));
+          this.setAttr(spdChild, CID.FanControl, 'percentSetting', lvToPct(currentSpeed, SPD_MAX));
         }
       });
     }
 
-    // Topic soufflerie dédié (valeur brute 0–5, lecture seule — pas de commande absolue)
+    // Topic soufflerie dédié (valeur brute 0–5)
     if (cfg.fanSpeedStateTopic) {
       this.subscribe(cfg.fanSpeedStateTopic, (p) => {
         const lv = parseFloat(p);
         if (!isNaN(lv)) {
-          currentFan = Math.max(FAN_MIN, Math.min(FAN_MAX, Math.round(lv)));
+          currentFan = Math.max(0, Math.min(FAN_MAX, Math.round(lv)));
           this.log.info(`[${cfg.name}] ← soufflerie ${currentFan}`);
-          this.setAttr(ep, CID.FanControl, 'speedSetting', currentFan);
+          this.setAttr(fanChild, CID.FanControl, 'percentSetting', lvToPct(currentFan, FAN_MAX));
         }
       });
     }
 
     await this.registerDevice(ep);
     this.endpointMap.set(cfg.id, ep);
-    this.log.info(`✓ stove "${cfg.name}"`);
+    this.log.info(`✓ stove composite "${cfg.name}" (switch + puissance + soufflerie)`);
   }
 
-    // ── Occupancy sensor ───────────────────────────────────────────────────────
+        // ── Occupancy sensor ───────────────────────────────────────────────────────
 
   private async createOccupancy(cfg: MqttDeviceConfig): Promise<void> {
     const ON  = cfg.payloadOn  ?? 'ON';
