@@ -17,7 +17,6 @@ import {
   occupancySensor,
   coverDevice,
   fanDevice,
-  thermostat,
   aggregator,
   bridgedNode,
   powerSource,
@@ -32,6 +31,9 @@ import { AnsiLogger } from 'node-ansi-logger';
 
 // ── MQTT ──────────────────────────────────────────────────────────────────────
 import mqtt, { MqttClient, IClientOptions } from 'mqtt';
+
+// Device Type ID pour un Thermostat (selon la spec Matter)
+const thermostatDevice = { deviceType: 0x0301, deviceRevision: 2 };
 
 // ── Cluster IDs Matter ───────────────────────────────────────────────────────
 const CID = {
@@ -748,7 +750,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
   // ── Thermostat ─────────────────────────────────────────────────────────────
 
   private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
-    const ep = new MatterbridgeEndpoint([thermostat, powerSource]);
+    const ep = new MatterbridgeEndpoint([thermostatDevice, powerSource]);
     // PID arbitraire pour le thermostat (ex: 0x800A)
     this.initEp(ep, cfg, 0x800A); 
     
