@@ -17,6 +17,7 @@ import {
   occupancySensor,
   coverDevice,
   fanDevice,
+  thermostat as thermostatDevice,
   aggregator,
   bridgedNode,
   powerSource,
@@ -745,14 +746,8 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
   }
 
   // ── Thermostat ─────────────────────────────────────────────────────────────
-  private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
 
-    const thermostatDevice = {
-      name: 'Thermostat',
-      code: 'thermostat',
-      deviceType: 0x0301,
-      deviceRevision: 2,
-    };
+  private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
 
     const ep = new MatterbridgeEndpoint([
       thermostatDevice,
@@ -832,7 +827,8 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     this.endpointMap.set(cfg.id, ep);
 
     this.log.info(`✓ thermostat "${cfg.name}" prêt`);
-  }  
+  }
+
   // ── Utility ────────────────────────────────────────────────────────────────
 
   // Petite fonction utilitaire à ajouter dans votre classe pour simplifier le parsing
