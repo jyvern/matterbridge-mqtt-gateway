@@ -748,18 +748,20 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
   }
 
   // ── Thermostat ─────────────────────────────────────────────────────────────
-
-  private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
+private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
+    // Utilisation de la constante manuelle définie plus haut
     const ep = new MatterbridgeEndpoint([thermostatDevice, powerSource]);
-    // PID arbitraire pour le thermostat (ex: 0x800A)
-    this.initEp(ep, cfg, 0x800A); 
     
-    // Initialisation du cluster Thermostat
-    ep.createDefaultThermostatClusterServer();
+    // Initialisation de base (Nom, Serial, etc.)
+    this.initEp(ep, cfg, 0x800A); 
 
-    // ── Commandes Matter → MQTT (Changement de consigne via l'app Matter) ──
+    // IMPORTANT : On passe des valeurs par défaut pour éviter le plantage interne
+    // systemMode: 4 (Heat), localTemp: 2000 (20°C), heatingSetpoint: 2100 (21°C)
+    ep.createDefaultThermostatClusterServer(4, 2000, 1600, 2100);
+
+    // ── Commandes Matter → MQTT (Changement de consigne) ──
+    // On utilise subscribeAttribute pour écouter les changements venant de l'App (Apple Home/Google Home)
     ep.subscribeAttribute(CID.Thermostat, 'occupiedHeatingSetpoint', (newValue: number) => {
-      // Matter utilise des centièmes de degrés (ex: 2000 = 20.00°C)
       const targetC = newValue / 100;
       this.log.info(`[${cfg.name}] → consigne ${targetC}°C`);
       
@@ -770,7 +772,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
 
     // ── États MQTT → Matter ──────────────────────────────────────────────────
 
-    // 1. Température actuelle (localTemperature)
+    // 1. Température actuelle
     if (cfg.stateTopic) {
       this.subscribe(cfg.stateTopic, (p) => {
         let c: number | null = null;
@@ -786,13 +788,13 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
       });
     }
 
-    // 2. Température de consigne (occupiedHeatingSetpoint) (si modifiée physiquement ou via une autre app MQTT)
+    // 2. Température de consigne (Retour d'état MQTT)
     if (cfg.targetTempStateTopic) {
       this.subscribe(cfg.targetTempStateTopic, (p) => {
         let c: number | null = null;
         try {
           const o = JSON.parse(p) as Record<string, unknown>;
-          c = parseFloat(String(o['target_temperature'] ?? o['current_heating_setpoint'] ?? o['value'] ?? o ?? ''));
+          c = parseFloat(String(o['target_temperature'] ?? o['occupied_heating_setpoint'] ?? o['value'] ?? o ?? ''));
         } catch { c = parseFloat(p); }
         
         if (c !== null && !isNaN(c)) {
