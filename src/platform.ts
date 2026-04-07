@@ -4,9 +4,9 @@
  */
 
 // ── Matterbridge ──────────────────────────────────────────────────────────────
-import {
+import * as matterbridge from 'matterbridge';
+const {
   MatterbridgeDynamicPlatform,
-  MatterbridgeEndpoint,
   onOffOutlet,
   onOffSwitch,
   dimmableLight,
@@ -17,15 +17,15 @@ import {
   occupancySensor,
   coverDevice,
   fanDevice,
-  thermostat as thermostatDevice,
+  thermostat: thermostatDevice,
   aggregator,
   bridgedNode,
   powerSource,
   getAttribute,
   setAttribute,
-} from 'matterbridge';
+} = matterbridge;
 
-import type { PlatformMatterbridge, PlatformConfig } from 'matterbridge';
+import type { PlatformMatterbridge, PlatformConfig, MatterbridgeEndpoint } from 'matterbridge';
 
 // ── Logger ────────────────────────────────────────────────────────────────────
 import { AnsiLogger } from 'node-ansi-logger';
@@ -250,7 +250,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     const ON  = cfg.payloadOn  ?? 'ON';
     const OFF = cfg.payloadOff ?? 'OFF';
 
-    const ep = new MatterbridgeEndpoint([devType, powerSource]);
+    const ep = new matterbridge.MatterbridgeEndpoint([devType, powerSource]);
     this.initEp(ep, cfg, pid);
     ep.createDefaultOnOffClusterServer();
 
@@ -289,7 +289,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     const ON  = cfg.payloadOn  ?? 'ON';
     const OFF = cfg.payloadOff ?? 'OFF';
 
-    const ep = new MatterbridgeEndpoint([dimmableLight, powerSource]);
+    const ep = new matterbridge.MatterbridgeEndpoint([dimmableLight, powerSource]);
     this.initEp(ep, cfg, 0x8002);
     ep.createDefaultOnOffClusterServer();
     ep.createDefaultLevelControlClusterServer();
@@ -334,7 +334,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     const ON  = cfg.payloadOn  ?? 'ON';
     const OFF = cfg.payloadOff ?? 'OFF';
 
-    const ep = new MatterbridgeEndpoint([colorTemperatureLight, powerSource]);
+    const ep = new matterbridge.MatterbridgeEndpoint([colorTemperatureLight, powerSource]);
     this.initEp(ep, cfg, 0x8003);
     ep.createDefaultOnOffClusterServer();
     ep.createDefaultLevelControlClusterServer();
@@ -405,7 +405,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     const OPEN   = cfg.payloadOpen   ?? 'OPEN';
     const CLOSED = cfg.payloadClosed ?? 'CLOSED';
 
-    const ep = new MatterbridgeEndpoint([contactSensor, powerSource]);
+    const ep = new matterbridge.MatterbridgeEndpoint([contactSensor, powerSource]);
     this.initEp(ep, cfg, 0x8004);
     ep.createDefaultBooleanStateClusterServer(true);
 
@@ -428,7 +428,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
   // ── Temperature sensor ─────────────────────────────────────────────────────
 
   private async createTemp(cfg: MqttDeviceConfig): Promise<void> {
-    const ep = new MatterbridgeEndpoint([temperatureSensor, powerSource]);
+    const ep = new matterbridge.MatterbridgeEndpoint([temperatureSensor, powerSource]);
     this.initEp(ep, cfg, 0x8005);
     ep.createDefaultTemperatureMeasurementClusterServer(2000);
 
@@ -454,7 +454,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
   // ── Humidity sensor ────────────────────────────────────────────────────────
 
   private async createHumidity(cfg: MqttDeviceConfig): Promise<void> {
-    const ep = new MatterbridgeEndpoint([humiditySensor, powerSource]);
+    const ep = new matterbridge.MatterbridgeEndpoint([humiditySensor, powerSource]);
     this.initEp(ep, cfg, 0x8006);
     ep.createDefaultRelativeHumidityMeasurementClusterServer(5000);
 
@@ -486,7 +486,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     // Alias courants pour l'état fermé reçu en retour du broker
     const CLOSED_ALIASES = [CLOSE.toUpperCase(), 'CLOSED', 'CLOSE'];
 
-    const ep = new MatterbridgeEndpoint([coverDevice, powerSource]);
+    const ep = new matterbridge.MatterbridgeEndpoint([coverDevice, powerSource]);
     this.initEp(ep, cfg, 0x8008);
     ep.createDefaultWindowCoveringClusterServer();
 
@@ -589,7 +589,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
       Math.round(Math.max(0, Math.min(100, pct)) / 100 * max);
 
     // ── Endpoint racine (aggregator) ────────────────────────────────────────
-    const ep = new MatterbridgeEndpoint([aggregator, powerSource]);
+    const ep = new matterbridge.MatterbridgeEndpoint([aggregator, powerSource]);
     this.initEp(ep, cfg, 0x8009);
 
     // ── Child 1 : switch (marche/arrêt) ─────────────────────────────────────
@@ -728,7 +728,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     const ON  = cfg.payloadOn  ?? 'ON';
     const OFF = cfg.payloadOff ?? 'OFF';
 
-    const ep = new MatterbridgeEndpoint([occupancySensor, powerSource]);
+    const ep = new matterbridge.MatterbridgeEndpoint([occupancySensor, powerSource]);
     this.initEp(ep, cfg, 0x8007);
     ep.createDefaultOccupancySensingClusterServer();
 
@@ -749,7 +749,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
 
   private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
 
-    const ep = new MatterbridgeEndpoint([
+    const ep = new matterbridge.MatterbridgeEndpoint([
       thermostatDevice,
       powerSource
     ]);
