@@ -724,7 +724,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     this.log.info(`✓ stove composite "${cfg.name}" (switch + puissance + soufflerie)`);
   }
 
-        // ── Occupancy sensor ───────────────────────────────────────────────────────
+  // ── Occupancy sensor ───────────────────────────────────────────────────────
 
   private async createOccupancy(cfg: MqttDeviceConfig): Promise<void> {
     const ON  = cfg.payloadOn  ?? 'ON';
@@ -748,57 +748,46 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
   }
 
   // ── Thermostat ─────────────────────────────────────────────────────────────
-private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
-    // Utilisation de la constante manuelle définie plus haut
+  private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
+    // 1. Création de l'Endpoint avec le type manuel
     const ep = new MatterbridgeEndpoint([thermostatDevice, powerSource]);
     
-    // Initialisation de base (Nom, Serial, etc.)
+    // 2. Initialisation (Nom, Serial, etc.)
     this.initEp(ep, cfg, 0x800A); 
 
-    // IMPORTANT : On passe des valeurs par défaut pour éviter le plantage interne
-    // systemMode: 4 (Heat), localTemp: 2000 (20°C), heatingSetpoint: 2100 (21°C)
+    // 3. Initialisation forcée du Cluster (Valeurs par défaut obligatoires)
+    // Paramètres : systemMode (4=Heat), localTemp (20.00°C), coolingSetpoint (16.00°C), heatingSetpoint (21.00°C)
+    // Note: Matter utilise des entiers (Degrés * 100)
     ep.createDefaultThermostatClusterServer(4, 2000, 1600, 2100);
 
-    // ── Commandes Matter → MQTT (Changement de consigne) ──
-    // On utilise subscribeAttribute pour écouter les changements venant de l'App (Apple Home/Google Home)
+    // 4. Souscription aux changements depuis l'App (Matter -> MQTT)
     ep.subscribeAttribute(CID.Thermostat, 'occupiedHeatingSetpoint', (newValue: number) => {
       const targetC = newValue / 100;
-      this.log.info(`[${cfg.name}] → consigne ${targetC}°C`);
-      
+      this.log.info(`[${cfg.name}] → Nouvelle consigne : ${targetC}°C`);
       if (cfg.targetTempCommandTopic) {
         this.publish(cfg.targetTempCommandTopic, String(targetC), cfg.retain);
       }
     }, this.log);
 
-    // ── États MQTT → Matter ──────────────────────────────────────────────────
-
-    // 1. Température actuelle
+    // 5. Écoute des retours d'état (MQTT -> Matter)
+    
+    // Température locale
     if (cfg.stateTopic) {
       this.subscribe(cfg.stateTopic, (p) => {
-        let c: number | null = null;
-        try {
-          const o = JSON.parse(p) as Record<string, unknown>;
-          c = parseFloat(String(o['temperature'] ?? o['temp'] ?? o['local_temperature'] ?? o['value'] ?? o ?? ''));
-        } catch { c = parseFloat(p); }
-        
-        if (c !== null && !isNaN(c)) {
-          this.log.info(`[${cfg.name}] ← temp actuelle ${c}°C`);
+        const c = this.parseFloatPayload(p, ['temperature', 'temp', 'local_temperature']);
+        if (c !== null) {
+          this.log.info(`[${cfg.name}] ← Température actuelle : ${c}°C`);
           this.setAttr(ep, CID.Thermostat, 'localTemperature', Math.round(c * 100));
         }
       });
     }
 
-    // 2. Température de consigne (Retour d'état MQTT)
+    // Retour d'état de la consigne
     if (cfg.targetTempStateTopic) {
       this.subscribe(cfg.targetTempStateTopic, (p) => {
-        let c: number | null = null;
-        try {
-          const o = JSON.parse(p) as Record<string, unknown>;
-          c = parseFloat(String(o['target_temperature'] ?? o['occupied_heating_setpoint'] ?? o['value'] ?? o ?? ''));
-        } catch { c = parseFloat(p); }
-        
-        if (c !== null && !isNaN(c)) {
-          this.log.info(`[${cfg.name}] ← consigne actuelle ${c}°C`);
+        const c = this.parseFloatPayload(p, ['target_temperature', 'occupied_heating_setpoint']);
+        if (c !== null) {
+          this.log.info(`[${cfg.name}] ← Consigne actuelle : ${c}°C`);
           this.setAttr(ep, CID.Thermostat, 'occupiedHeatingSetpoint', Math.round(c * 100));
         }
       });
@@ -806,10 +795,23 @@ private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
 
     await this.registerDevice(ep);
     this.endpointMap.set(cfg.id, ep);
-    this.log.info(`✓ thermostat "${cfg.name}"`);
+    this.log.info(`✓ thermostat "${cfg.name}" prêt`);
   }
 
   // ── Utility ────────────────────────────────────────────────────────────────
+
+  // Petite fonction utilitaire à ajouter dans votre classe pour simplifier le parsing
+  private parseFloatPayload(payload: string, keys: string[]): number | null {
+    try {
+      const o = JSON.parse(payload);
+      for (const key of keys) {
+        if (o[key] !== undefined) return parseFloat(String(o[key]));
+      }
+      return parseFloat(payload);
+    } catch {
+      return parseFloat(payload);
+    }
+  }
 
   private parseOnOff(payload: string, on: string, off: string): boolean | null {
     if (payload === on)  return true;
