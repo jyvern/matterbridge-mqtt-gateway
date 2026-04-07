@@ -749,8 +749,11 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
 
   private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
 
+    const devType = thermostatDevice ?? bridgedNode ?? aggregator ?? { code: CID.Thermostat };
+    if (!thermostatDevice) this.log.warn('matterbridge.thermostat not found — using fallback device type');
+
     const ep = new matterbridge.MatterbridgeEndpoint([
-      thermostatDevice,
+      devType,
       powerSource
     ]);
 
