@@ -14,7 +14,8 @@ declare module 'matterbridge' {
     createDefaultRelativeHumidityMeasurementClusterServer(value: number): void;
     createDefaultOccupancySensingClusterServer(): void;
     createDefaultWindowCoveringClusterServer(): void;
-    createDefaultFanControlClusterServer(fanMode?: number, fanModeSequence?: number, percentSetting?: number, percentCurrent?: number): void;
+    createDefaultThermostatClusterServer(systemMode?: number, localTemperature?: number, occupiedCoolingSetpoint?: number, occupiedHeatingSetpoint?: number): void;
+    subscribeAttribute(clusterId: number, attributeName: string, handler: (newValue: any) => void, log?: any): void;    createDefaultFanControlClusterServer(fanMode?: number, fanModeSequence?: number, percentSetting?: number, percentCurrent?: number): void;
     createMultiSpeedFanControlClusterServer(fanMode?: number, fanModeSequence?: number, percentSetting?: number, percentCurrent?: number, speedMax?: number, speedSetting?: number): void;
     addCommandHandler(cmd: string, handler: (data: any) => void | Promise<void>): void;
     [key: string]: any;
@@ -43,6 +44,7 @@ declare module 'matterbridge' {
   export const aggregator: any;
   export const bridgedNode: any;
   export const powerSource: any;
+  export const thermostat: any;
 
   export function getAttribute(ep: MatterbridgeEndpoint, clusterId: any, attr: string, log: any): any;
   export function setAttribute(ep: MatterbridgeEndpoint, clusterId: any, attr: string, value: any, log: any): void;

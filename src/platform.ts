@@ -17,6 +17,7 @@ import {
   occupancySensor,
   coverDevice,
   fanDevice,
+  thermostat,
   aggregator,
   bridgedNode,
   powerSource,
@@ -43,6 +44,7 @@ const CID = {
   OccupancySensing:            0x0406,
   WindowCovering:              0x0102,
   FanControl:                  0x0202,
+  Thermostat:                  0x0201,
 } as const;
 
 // ── Config appareil MQTT ───────────────────────────────────────────────────────
@@ -53,7 +55,8 @@ type DeviceKind =
   | 'contact_sensor'
   | 'temperature' | 'humidity' | 'occupancy'
   | 'cover'
-  | 'stove';
+  | 'stove'
+  | 'thermostat';
 
 interface MqttDeviceConfig {
   id:   string;
@@ -87,6 +90,10 @@ interface MqttDeviceConfig {
   fanSpeedStepTopic?:    string;   // incrément soufflerie (+1 / -1, commande uniquement)
   speedMin?:             number;   // défaut 1
   speedMax?:             number;   // défaut 5
+
+  // thermostat
+  targetTempStateTopic?:   string;
+  targetTempCommandTopic?: string;
 }
 
 // ── Typage des handlers de commandes ─────────────────────────────────────────
@@ -228,6 +235,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
       case 'occupancy':      return this.createOccupancy(cfg);
       case 'cover':          return this.createCover(cfg);
       case 'stove':          return this.createStove(cfg);
+      case 'thermostat':     return this.createThermostat(cfg);
       default: this.log.warn(`Unknown type "${cfg.type}" — skipping "${cfg.id}"`);
     }
   }
@@ -735,6 +743,66 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     await this.registerDevice(ep);
     this.endpointMap.set(cfg.id, ep);
     this.log.info(`✓ occupancy sensor "${cfg.name}"`);
+  }
+
+  // ── Thermostat ─────────────────────────────────────────────────────────────
+
+  private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
+    const ep = new MatterbridgeEndpoint([thermostat, powerSource]);
+    // PID arbitraire pour le thermostat (ex: 0x800A)
+    this.initEp(ep, cfg, 0x800A); 
+    
+    // Initialisation du cluster Thermostat
+    ep.createDefaultThermostatClusterServer();
+
+    // ── Commandes Matter → MQTT (Changement de consigne via l'app Matter) ──
+    ep.subscribeAttribute(CID.Thermostat, 'occupiedHeatingSetpoint', (newValue: number) => {
+      // Matter utilise des centièmes de degrés (ex: 2000 = 20.00°C)
+      const targetC = newValue / 100;
+      this.log.info(`[${cfg.name}] → consigne ${targetC}°C`);
+      
+      if (cfg.targetTempCommandTopic) {
+        this.publish(cfg.targetTempCommandTopic, String(targetC), cfg.retain);
+      }
+    }, this.log);
+
+    // ── États MQTT → Matter ──────────────────────────────────────────────────
+
+    // 1. Température actuelle (localTemperature)
+    if (cfg.stateTopic) {
+      this.subscribe(cfg.stateTopic, (p) => {
+        let c: number | null = null;
+        try {
+          const o = JSON.parse(p) as Record<string, unknown>;
+          c = parseFloat(String(o['temperature'] ?? o['temp'] ?? o['local_temperature'] ?? o['value'] ?? o ?? ''));
+        } catch { c = parseFloat(p); }
+        
+        if (c !== null && !isNaN(c)) {
+          this.log.info(`[${cfg.name}] ← temp actuelle ${c}°C`);
+          this.setAttr(ep, CID.Thermostat, 'localTemperature', Math.round(c * 100));
+        }
+      });
+    }
+
+    // 2. Température de consigne (occupiedHeatingSetpoint) (si modifiée physiquement ou via une autre app MQTT)
+    if (cfg.targetTempStateTopic) {
+      this.subscribe(cfg.targetTempStateTopic, (p) => {
+        let c: number | null = null;
+        try {
+          const o = JSON.parse(p) as Record<string, unknown>;
+          c = parseFloat(String(o['target_temperature'] ?? o['current_heating_setpoint'] ?? o['value'] ?? o ?? ''));
+        } catch { c = parseFloat(p); }
+        
+        if (c !== null && !isNaN(c)) {
+          this.log.info(`[${cfg.name}] ← consigne actuelle ${c}°C`);
+          this.setAttr(ep, CID.Thermostat, 'occupiedHeatingSetpoint', Math.round(c * 100));
+        }
+      });
+    }
+
+    await this.registerDevice(ep);
+    this.endpointMap.set(cfg.id, ep);
+    this.log.info(`✓ thermostat "${cfg.name}"`);
   }
 
   // ── Utility ────────────────────────────────────────────────────────────────

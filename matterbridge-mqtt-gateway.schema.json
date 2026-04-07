@@ -42,7 +42,7 @@
           "type": {
             "description": "Device type",
             "type": "string",
-            "enum": ["light", "outlet", "switch", "temperature", "humidity", "contact", "motion", "fan", "cover", "stove"]
+            "enum": ["light", "outlet", "switch", "temperature", "humidity", "contact", "motion", "fan", "cover", "stove", "thermostat"]
           },
           "stateTopic": {
             "description": "MQTT topic to subscribe for device state",
@@ -114,6 +114,14 @@
             "description": "[stove] Valeur maximale de puissance et soufflerie (défaut: 5)",
             "type": "number",
             "default": 5
+          },
+          "targetTempStateTopic": {
+            "description": "[thermostat] Topic MQTT recevant la température de consigne actuelle en °C",
+            "type": "string"
+          },
+          "targetTempCommandTopic": {
+            "description": "[thermostat] Topic MQTT pour envoyer une nouvelle température de consigne en °C",
+            "type": "string"
           }
         },
         "required": ["id", "name", "type", "stateTopic"]
