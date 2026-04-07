@@ -759,11 +759,20 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
 
     this.initEp(ep, cfg, 0x800A);
 
+    // If we had the real `thermostat` device type we'd keep the original
+    // centi-degree defaults (2000 => 20.00°C). When using the fallback
+    // device type some internal code multiplies values again which caused
+    // overflow (see runtime integer-range error). Use smaller defaults
+    // for the fallback path to avoid exceeding int16 limits.
+    const localTempDefault = thermostatDevice ? 2000 : 20;
+    const occupiedCoolingDefault = thermostatDevice ? 1600 : 16;
+    const occupiedHeatingDefault = thermostatDevice ? 2100 : 21;
+
     ep.createDefaultThermostatClusterServer(
       4,
-      2000,
-      1600,
-      2100
+      localTempDefault,
+      occupiedCoolingDefault,
+      occupiedHeatingDefault,
     );
 
     ep.subscribeAttribute(
