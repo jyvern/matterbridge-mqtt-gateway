@@ -17,7 +17,6 @@ const {
   occupancySensor,
   coverDevice,
   fanDevice,
-  thermostat,
   aggregator,
   bridgedNode,
   powerSource,
@@ -45,6 +44,15 @@ const CID = {
   WindowCovering:              0x0102,
   FanControl:                  0x0202,
   Thermostat:                  0x0201,
+} as const;
+
+// Device type Matter "Thermostat" (spec ID 0x0301) — défini manuellement
+// car certaines versions de matterbridge n'exportent pas la constante.
+const thermostatDeviceType = {
+  code:           0x0301,
+  name:           'Thermostat',
+  deviceType:     0x0301,
+  deviceRevision: 2,
 } as const;
 
 // ── Config appareil MQTT ───────────────────────────────────────────────────────
@@ -746,25 +754,22 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
   }
 
   // ── Thermostat ─────────────────────────────────────────────────────────────
-    private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
+  private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
 
-    if (!thermostat) {
-      this.log.error(`[${cfg.name}] 'thermostat' device type absent de matterbridge — appareil non créé`);
-      return;
-    }
+    const ep = new matterbridge.MatterbridgeEndpoint([
+      thermostatDeviceType,
+      powerSource,
+    ]);
 
-    const ep = new matterbridge.MatterbridgeEndpoint([thermostat, powerSource]);
-    this.initEp(ep, cfg, 0x0301);   // 0x0301 = Matter Thermostat device type
+    this.initEp(ep, cfg, 0x0301);
 
-    // Mode Heat uniquement ; localTemperature en centi-degrés
     ep.createDefaultThermostatClusterServer(
-      4,     // systemMode = Heat
-      2000,  // localTemperature  = 20.00 °C  (en 1/100 °C)
-      1600,  // occupiedCoolingSetpoint  (ignoré en mode Heat mais requis par le cluster)
-      2100,  // occupiedHeatingSetpoint  = 21.00 °C
+      4,     // systemMode : 4 = Heat
+      2000,  // localTemperature        = 20.00 °C
+      1600,  // occupiedCoolingSetpoint = 16.00 °C (requis même en mode Heat)
+      2100,  // occupiedHeatingSetpoint = 21.00 °C
     );
 
-    // Écoute les changements de consigne venant de Google Home → MQTT
     ep.subscribeAttribute(
       CID.Thermostat,
       'occupiedHeatingSetpoint',
@@ -777,7 +782,6 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
       this.log,
     );
 
-    // Température actuelle reçue via MQTT → mise à jour du cluster
     if (cfg.stateTopic) {
       this.subscribe(cfg.stateTopic, (p) => {
         const c = this.parseFloatPayload(p, ['temperature', 'temp', 'local_temperature']);
@@ -788,7 +792,6 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
       });
     }
 
-    // Consigne reçue depuis MQTT (ex : retour d'état du vrai thermostat)
     if (cfg.targetTempStateTopic) {
       this.subscribe(cfg.targetTempStateTopic, (p) => {
         const c = this.parseFloatPayload(p, ['target_temperature', 'occupied_heating_setpoint']);
@@ -803,6 +806,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     this.endpointMap.set(cfg.id, ep);
     this.log.info(`✓ thermostat "${cfg.name}" prêt`);
   }
+
   // ── Utility ────────────────────────────────────────────────────────────────
 
   // Petite fonction utilitaire à ajouter dans votre classe pour simplifier le parsing
