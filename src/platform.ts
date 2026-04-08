@@ -17,22 +17,13 @@ const {
   occupancySensor,
   coverDevice,
   fanDevice,
+  thermostat,
   aggregator,
   bridgedNode,
   powerSource,
   getAttribute,
   setAttribute,
 } = matterbridge;
-
-// Resolve `thermostat` export from several possible module shapes (ESM default, named, nested).
-const thermostatDevice: any = (matterbridge as any).thermostat
-  ?? (matterbridge as any).default?.thermostat
-  ?? (matterbridge as any).Thermostat
-  ?? (matterbridge as any).devices?.thermostat
-  ?? (matterbridge as any).types?.thermostat
-  ?? undefined;
-
-let _thermostatWarned = false;
 
 import type { PlatformMatterbridge, PlatformConfig, MatterbridgeEndpoint } from 'matterbridge';
 
@@ -755,125 +746,63 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
   }
 
   // ── Thermostat ─────────────────────────────────────────────────────────────
+    private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
 
-  private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
-    // Try to resolve a real `thermostat` device export from matterbridge's
-    // subpath if it wasn't available on the root import. This covers packages
-    // that expose devices under `matter/devices` via package `exports`.
-    let resolvedThermostat: any = thermostatDevice;
-    if (!resolvedThermostat) {
-      const tryPaths = [
-        'matterbridge/devices',
-        'matterbridge/dist/devices/export.js',
-        'matterbridge/dist/devices.js',
-      ];
-      for (const p of tryPaths) {
-        try {
-          // @ts-ignore
-          const devs = await import(p);
-          resolvedThermostat = (devs as any).thermostat ?? (devs as any).default?.thermostat ?? resolvedThermostat;
-          if (resolvedThermostat) break;
-        } catch {
-          // try next path
-        }
-      }
+    if (!thermostat) {
+      this.log.error(`[${cfg.name}] 'thermostat' device type absent de matterbridge — appareil non créé`);
+      return;
     }
 
-    const devType = resolvedThermostat ?? bridgedNode ?? aggregator ?? { code: CID.Thermostat };
-    if (!resolvedThermostat && !_thermostatWarned) {
-      this.log.warn('matterbridge.thermostat not found — using fallback device type');
-      _thermostatWarned = true;
-    }
+    const ep = new matterbridge.MatterbridgeEndpoint([thermostat, powerSource]);
+    this.initEp(ep, cfg, 0x0301);   // 0x0301 = Matter Thermostat device type
 
-    const ep = new matterbridge.MatterbridgeEndpoint([
-      devType,
-      powerSource,
-    ]);
-
-    this.initEp(ep, cfg, 0x800A);
-
-    // If we had the real `thermostat` device type we'd keep the original
-    // centi-degree defaults (2000 => 20.00°C). When using the fallback
-    // device type some internal code multiplies values again which caused
-    // overflow (see runtime integer-range error). Use smaller defaults
-    // for the fallback path to avoid exceeding int16 limits.
-    const localTempDefault = thermostatDevice ? 2000 : 20;
-    const occupiedCoolingDefault = thermostatDevice ? 1600 : 16;
-    const occupiedHeatingDefault = thermostatDevice ? 2100 : 21;
-
+    // Mode Heat uniquement ; localTemperature en centi-degrés
     ep.createDefaultThermostatClusterServer(
-      4,
-      localTempDefault,
-      occupiedCoolingDefault,
-      occupiedHeatingDefault,
+      4,     // systemMode = Heat
+      2000,  // localTemperature  = 20.00 °C  (en 1/100 °C)
+      1600,  // occupiedCoolingSetpoint  (ignoré en mode Heat mais requis par le cluster)
+      2100,  // occupiedHeatingSetpoint  = 21.00 °C
     );
 
+    // Écoute les changements de consigne venant de Google Home → MQTT
     ep.subscribeAttribute(
       CID.Thermostat,
       'occupiedHeatingSetpoint',
       (newValue: number) => {
-
         const targetC = newValue / 100;
-
-        this.log.info(
-          `[${cfg.name}] → Nouvelle consigne : ${targetC}°C`
-        );
-
-        if (cfg.targetTempCommandTopic) {
-          this.publish(
-            cfg.targetTempCommandTopic,
-            String(targetC),
-            cfg.retain
-          );
-        }
+        this.log.info(`[${cfg.name}] → Nouvelle consigne : ${targetC}°C`);
+        if (cfg.targetTempCommandTopic)
+          this.publish(cfg.targetTempCommandTopic, String(targetC), cfg.retain);
       },
-      this.log
+      this.log,
     );
 
+    // Température actuelle reçue via MQTT → mise à jour du cluster
     if (cfg.stateTopic) {
       this.subscribe(cfg.stateTopic, (p) => {
-
-        const c = this.parseFloatPayload(
-          p,
-          ['temperature','temp','local_temperature']
-        );
-
+        const c = this.parseFloatPayload(p, ['temperature', 'temp', 'local_temperature']);
         if (c !== null) {
-          this.setAttr(
-            ep,
-            CID.Thermostat,
-            'localTemperature',
-            Math.round(c * 100)
-          );
+          this.log.info(`[${cfg.name}] ← localTemperature ${c}°C`);
+          this.setAttr(ep, CID.Thermostat, 'localTemperature', Math.round(c * 100));
         }
       });
     }
 
+    // Consigne reçue depuis MQTT (ex : retour d'état du vrai thermostat)
     if (cfg.targetTempStateTopic) {
       this.subscribe(cfg.targetTempStateTopic, (p) => {
-
-        const c = this.parseFloatPayload(
-          p,
-          ['target_temperature','occupied_heating_setpoint']
-        );
-
+        const c = this.parseFloatPayload(p, ['target_temperature', 'occupied_heating_setpoint']);
         if (c !== null) {
-          this.setAttr(
-            ep,
-            CID.Thermostat,
-            'occupiedHeatingSetpoint',
-            Math.round(c * 100)
-          );
+          this.log.info(`[${cfg.name}] ← occupiedHeatingSetpoint ${c}°C`);
+          this.setAttr(ep, CID.Thermostat, 'occupiedHeatingSetpoint', Math.round(c * 100));
         }
       });
     }
 
     await this.registerDevice(ep);
     this.endpointMap.set(cfg.id, ep);
-
     this.log.info(`✓ thermostat "${cfg.name}" prêt`);
   }
-
   // ── Utility ────────────────────────────────────────────────────────────────
 
   // Petite fonction utilitaire à ajouter dans votre classe pour simplifier le parsing
