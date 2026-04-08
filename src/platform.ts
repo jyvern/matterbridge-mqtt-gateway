@@ -17,13 +17,22 @@ const {
   occupancySensor,
   coverDevice,
   fanDevice,
-  thermostat: thermostatDevice,
   aggregator,
   bridgedNode,
   powerSource,
   getAttribute,
   setAttribute,
 } = matterbridge;
+
+// Resolve `thermostat` export from several possible module shapes (ESM default, named, nested).
+const thermostatDevice: any = (matterbridge as any).thermostat
+  ?? (matterbridge as any).default?.thermostat
+  ?? (matterbridge as any).Thermostat
+  ?? (matterbridge as any).devices?.thermostat
+  ?? (matterbridge as any).types?.thermostat
+  ?? undefined;
+
+let _thermostatWarned = false;
 
 import type { PlatformMatterbridge, PlatformConfig, MatterbridgeEndpoint } from 'matterbridge';
 
@@ -750,7 +759,10 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
   private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
 
     const devType = thermostatDevice ?? bridgedNode ?? aggregator ?? { code: CID.Thermostat };
-    if (!thermostatDevice) this.log.warn('matterbridge.thermostat not found — using fallback device type');
+    if (!thermostatDevice && !_thermostatWarned) {
+      this.log.warn('matterbridge.thermostat not found — using fallback device type');
+      _thermostatWarned = true;
+    }
 
     const ep = new matterbridge.MatterbridgeEndpoint([
       devType,
