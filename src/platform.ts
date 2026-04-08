@@ -48,12 +48,29 @@ const CID = {
 
 // Device type Matter "Thermostat" (spec ID 0x0301) — défini manuellement
 // car certaines versions de matterbridge n'exportent pas la constante.
-const thermostatDeviceType = {
-  code:           0x0301,
-  name:           'Thermostat',
-  deviceType:     0x0301,
-  deviceRevision: 2,
-} as const;
+// Recherche du device type thermostat dans tous les exports de matterbridge
+const thermostatDeviceType: any =
+  // 1. Export direct
+  (matterbridge as any).thermostat ??
+  (matterbridge as any).Thermostat ??
+  // 2. Scan de tous les exports : on cherche un objet avec code 0x0301
+  Object.values(matterbridge as any).find(
+    (v: any) =>
+      v !== null &&
+      typeof v === 'object' &&
+      (v.code === 0x0301 ||
+       v.deviceType === 0x0301 ||
+       (typeof v.name === 'string' && v.name.toLowerCase().includes('thermostat')))
+  ) ??
+  // 3. Fallback avec tous les champs que Matterbridge peut lire
+  {
+    name:           'MA-thermostat',
+    code:           0x0301,
+    deviceType:     0x0301,
+    deviceRevision: 2,
+    tag:            'MA-thermostat',
+    typeName:       'MA-thermostat',
+  };
 
 // ── Config appareil MQTT ───────────────────────────────────────────────────────
 
@@ -755,6 +772,8 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
 
   // ── Thermostat ─────────────────────────────────────────────────────────────
   private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
+
+    this.log.info(`[${cfg.name}] thermostatDeviceType = ${JSON.stringify(thermostatDeviceType)}`);
 
     const ep = new matterbridge.MatterbridgeEndpoint([
       thermostatDeviceType,
