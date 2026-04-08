@@ -783,10 +783,10 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     this.initEp(ep, cfg, 0x0301);
 
     ep.createDefaultThermostatClusterServer(
-      4,     // systemMode : 4 = Heat
-      2000,  // localTemperature        = 20.00 °C
-      1600,  // occupiedCoolingSetpoint = 16.00 °C (requis même en mode Heat)
-      2100,  // occupiedHeatingSetpoint = 21.00 °C
+      4,   // systemMode : Heat
+      20,  // localTemperature        = 20°C  (la lib fait ×100 en interne)
+      16,  // occupiedCoolingSetpoint = 16°C
+      21,  // occupiedHeatingSetpoint = 21°C
     );
 
     ep.subscribeAttribute(
@@ -806,7 +806,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
         const c = this.parseFloatPayload(p, ['temperature', 'temp', 'local_temperature']);
         if (c !== null) {
           this.log.info(`[${cfg.name}] ← localTemperature ${c}°C`);
-          this.setAttr(ep, CID.Thermostat, 'localTemperature', Math.round(c * 100));
+          this.setAttr(ep, CID.Thermostat, 'localTemperature', Math.round(c));
         }
       });
     }
@@ -816,7 +816,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
         const c = this.parseFloatPayload(p, ['target_temperature', 'occupied_heating_setpoint']);
         if (c !== null) {
           this.log.info(`[${cfg.name}] ← occupiedHeatingSetpoint ${c}°C`);
-          this.setAttr(ep, CID.Thermostat, 'occupiedHeatingSetpoint', Math.round(c * 100));
+          this.setAttr(ep, CID.Thermostat, 'occupiedHeatingSetpoint', Math.round(c));
         }
       });
     }
