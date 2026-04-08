@@ -762,14 +762,20 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     // that expose devices under `matter/devices` via package `exports`.
     let resolvedThermostat: any = thermostatDevice;
     if (!resolvedThermostat) {
-      try {
-        // dynamic import supported in Node ESM runtime
-        // suppress TS resolution error for this conditional dynamic import
-        // @ts-ignore
-        const devs = await import('matterbridge/matter/devices');
-        resolvedThermostat = (devs as any).thermostat ?? (devs as any).default?.thermostat ?? resolvedThermostat;
-      } catch {
-        // ignore — we'll use fallback below
+      const tryPaths = [
+        'matterbridge/devices',
+        'matterbridge/dist/devices/export.js',
+        'matterbridge/dist/devices.js',
+      ];
+      for (const p of tryPaths) {
+        try {
+          // @ts-ignore
+          const devs = await import(p);
+          resolvedThermostat = (devs as any).thermostat ?? (devs as any).default?.thermostat ?? resolvedThermostat;
+          if (resolvedThermostat) break;
+        } catch {
+          // try next path
+        }
       }
     }
 
