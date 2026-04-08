@@ -757,16 +757,31 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
   // ── Thermostat ─────────────────────────────────────────────────────────────
 
   private async createThermostat(cfg: MqttDeviceConfig): Promise<void> {
+    // Try to resolve a real `thermostat` device export from matterbridge's
+    // subpath if it wasn't available on the root import. This covers packages
+    // that expose devices under `matter/devices` via package `exports`.
+    let resolvedThermostat: any = thermostatDevice;
+    if (!resolvedThermostat) {
+      try {
+        // dynamic import supported in Node ESM runtime
+        // suppress TS resolution error for this conditional dynamic import
+        // @ts-ignore
+        const devs = await import('matterbridge/matter/devices');
+        resolvedThermostat = (devs as any).thermostat ?? (devs as any).default?.thermostat ?? resolvedThermostat;
+      } catch {
+        // ignore — we'll use fallback below
+      }
+    }
 
-    const devType = thermostatDevice ?? bridgedNode ?? aggregator ?? { code: CID.Thermostat };
-    if (!thermostatDevice && !_thermostatWarned) {
+    const devType = resolvedThermostat ?? bridgedNode ?? aggregator ?? { code: CID.Thermostat };
+    if (!resolvedThermostat && !_thermostatWarned) {
       this.log.warn('matterbridge.thermostat not found — using fallback device type');
       _thermostatWarned = true;
     }
 
     const ep = new matterbridge.MatterbridgeEndpoint([
       devType,
-      powerSource
+      powerSource,
     ]);
 
     this.initEp(ep, cfg, 0x800A);
