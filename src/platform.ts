@@ -807,12 +807,13 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
         const c = this.parseFloatPayload(p, ['temperature', 'temp', 'local_temperature']);
         if (c !== null) {
           this.log.info(`[${cfg.name}] ← localTemperature ${c}°C`);
-          // setAttribute + forcer le rapport Matter
+          // Helper global (met à jour en interne)
           this.setAttr(ep, CID.Thermostat, 'localTemperature', Math.round(c * 100));
+          // Méthode directe de l'endpoint (déclenche le rapport Matter vers Google Home)
           try {
-            await ep.setAttribute(CID.Thermostat as any, 'localTemperature', Math.round(c * 100), this.log);
+            await (ep as any).setAttribute('thermostat', 'localTemperature', Math.round(c * 100), this.log);
           } catch (e) {
-            this.log.debug(`[${cfg.name}] setAttribute direct: ${e}`);
+            this.log.debug(`[${cfg.name}] ep.setAttribute: ${e}`);
           }
         }
       });
