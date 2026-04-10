@@ -803,11 +803,17 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     );
     
     if (cfg.stateTopic) {
-      this.subscribe(cfg.stateTopic, (p) => {
+      this.subscribe(cfg.stateTopic, async (p) => {
         const c = this.parseFloatPayload(p, ['temperature', 'temp', 'local_temperature']);
         if (c !== null) {
           this.log.info(`[${cfg.name}] ← localTemperature ${c}°C`);
+          // setAttribute + forcer le rapport Matter
           this.setAttr(ep, CID.Thermostat, 'localTemperature', Math.round(c * 100));
+          try {
+            await ep.setAttribute(CID.Thermostat as any, 'localTemperature', Math.round(c * 100), this.log);
+          } catch (e) {
+            this.log.debug(`[${cfg.name}] setAttribute direct: ${e}`);
+          }
         }
       });
     }
