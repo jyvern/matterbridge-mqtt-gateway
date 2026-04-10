@@ -789,13 +789,15 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
       21,  // occupiedHeatingSetpoint = 21°C
     );
 
+    // Google Home → Node-RED : diviser par 100
     ep.subscribeAttribute(
       CID.Thermostat,
       'occupiedHeatingSetpoint',
       (newValue: number) => {
-        this.log.info(`[${cfg.name}] → Nouvelle consigne : ${newValue}°C`);
+        const targetC = newValue / 100;  // ← remettre / 100
+        this.log.info(`[${cfg.name}] → Nouvelle consigne : ${targetC}°C`);
         if (cfg.targetTempCommandTopic)
-          this.publish(cfg.targetTempCommandTopic, String(newValue), cfg.retain);
+          this.publish(cfg.targetTempCommandTopic, String(targetC), cfg.retain);
       },
       this.log,
     );
@@ -805,7 +807,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
         const c = this.parseFloatPayload(p, ['temperature', 'temp', 'local_temperature']);
         if (c !== null) {
           this.log.info(`[${cfg.name}] ← localTemperature ${c}°C`);
-          this.setAttr(ep, CID.Thermostat, 'localTemperature', Math.round(c));
+          this.setAttr(ep, CID.Thermostat, 'localTemperature', Math.round(c * 100));
         }
       });
     }
@@ -815,8 +817,9 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
         const c = this.parseFloatPayload(p, ['target_temperature', 'occupied_heating_setpoint']);
         if (c !== null) {
           this.log.info(`[${cfg.name}] ← occupiedHeatingSetpoint ${c}°C`);
-          this.setAttr(ep, CID.Thermostat, 'occupiedHeatingSetpoint', Math.round(c));
+          this.setAttr(ep, CID.Thermostat, 'occupiedHeatingSetpoint', Math.round(c * 100));
         }
+        
       });
     }
 
