@@ -793,8 +793,8 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
       CID.Thermostat,
       'occupiedHeatingSetpoint',
       (newValue: number) => {
+        this.log.info(`[${cfg.name}] subscribeAttribute déclenché : ${newValue}`); // ← ajouter
         const targetC = newValue / 100;
-        this.log.info(`[${cfg.name}] → Nouvelle consigne : ${targetC}°C`);
         if (cfg.targetTempCommandTopic)
           this.publish(cfg.targetTempCommandTopic, String(targetC), cfg.retain);
       },
