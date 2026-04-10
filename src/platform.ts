@@ -813,7 +813,7 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
           try {
             await (ep as any).setAttribute('thermostat', 'localTemperature', Math.round(c * 100), this.log);
           } catch (e) {
-            this.log.debug(`[${cfg.name}] ep.setAttribute: ${e}`);
+            this.log.info(`[${cfg.name}] ep.setAttribute: ${e}`);
           }
         }
       });
