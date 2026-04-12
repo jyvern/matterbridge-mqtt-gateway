@@ -577,8 +577,12 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
       this.subscribe(cfg.positionStateTopic, (p) => {
         let pct: number | null = null;
         try {
-          const o = JSON.parse(p) as Record<string, unknown>;
-          pct = parseFloat(String(o['position'] ?? o['value'] ?? ''));
+          const o = JSON.parse(p);
+          if (o !== null && typeof o === 'object') {
+            pct = parseFloat(String(o['position'] ?? o['value'] ?? ''));
+          } else {
+            pct = parseFloat(p); // payload numérique brut : "50", "25", etc.
+          }
         } catch { pct = parseFloat(p); }
 
         if (pct !== null && !isNaN(pct)) {
