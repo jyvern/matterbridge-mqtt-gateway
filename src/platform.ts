@@ -192,8 +192,13 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
       this.mqttClient.on('reconnect', ()  => this.log.warn('MQTT reconnecting…'));
       this.mqttClient.on('message', (topic, buf) => {
         const payload = buf.toString().trim();
-        if (this.config['debug']) this.log.debug(`← [${topic}] ${payload}`);
-        this.topicHandlers.get(topic)?.forEach(h => {
+        this.log.debug(`← [${topic}] ${payload}`);
+        const handlers = this.topicHandlers.get(topic);
+        if (!handlers) {
+          this.log.warn(`← [${topic}] aucun handler enregistré pour ce topic`);
+          return;
+        }
+        handlers.forEach(h => {
           try { h(payload); } catch (e) { this.log.error(`Handler [${topic}]: ${e}`); }
         });
       });
@@ -206,8 +211,8 @@ export class MqttPlatform extends MatterbridgeDynamicPlatform {
     if (list) { list.push(handler); return; }
     this.topicHandlers.set(topic, [handler]);
     this.mqttClient.subscribe(topic, (err) => {
-      if (err)                         this.log.error(`Subscribe failed [${topic}]: ${err.message}`);
-      else if (this.config['debug'])   this.log.debug(`subscribed → ${topic}`);
+      if (err) this.log.error(`Subscribe failed [${topic}]: ${err.message}`);
+      else     this.log.info(`subscribed → ${topic}`);
     });
   }
 
