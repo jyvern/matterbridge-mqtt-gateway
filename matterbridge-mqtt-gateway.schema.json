@@ -42,7 +42,18 @@
           "type": {
             "description": "Device type",
             "type": "string",
-            "enum": ["light", "outlet", "switch", "temperature", "humidity", "contact", "motion", "fan", "cover", "stove", "thermostat"]
+            "enum": [
+              "light",
+              "outlet",
+              "switch",
+              "temperature",
+              "humidity",
+              "contact_sensor",
+              "occupancy",
+              "fan",
+              "cover",
+              "thermostat"
+            ]
           },
           "stateTopic": {
             "description": "MQTT topic to subscribe for device state",
@@ -86,32 +97,24 @@
             "type": "string"
           },
           "speedStateTopic": {
-            "description": "[stove] Topic MQTT recevant la puissance actuelle (0–5)",
+            "description": "[fan] Topic MQTT recevant le niveau actuel — JSON {\"level\":3} ou {\"percent\":60} ou valeur brute",
             "type": "string"
           },
           "speedCommandTopic": {
-            "description": "[stove] Topic MQTT pour envoyer une puissance absolue (0–5)",
+            "description": "[fan] Topic MQTT pour publier la commande — JSON {\"level\":3,\"percent\":60}",
             "type": "string"
           },
           "speedStepTopic": {
-            "description": "[stove] Topic MQTT pour envoyer un incrément de puissance (+1 ou -1)",
-            "type": "string"
-          },
-          "fanSpeedStateTopic": {
-            "description": "[stove] Topic MQTT recevant la soufflerie actuelle (0–5, lecture seule)",
-            "type": "string"
-          },
-          "fanSpeedStepTopic": {
-            "description": "[stove] Topic MQTT pour envoyer un incrément de soufflerie (+1 ou -1)",
+            "description": "[fan] Topic MQTT pour publier un incrément (+1 ou -1)",
             "type": "string"
           },
           "speedMin": {
-            "description": "[stove] Valeur minimale de puissance (défaut: 0)",
+            "description": "[fan] Niveau minimum (défaut: 0)",
             "type": "number",
             "default": 0
           },
           "speedMax": {
-            "description": "[stove] Valeur maximale de puissance et soufflerie (défaut: 5)",
+            "description": "[fan] Niveau maximum (défaut: 5)",
             "type": "number",
             "default": 5
           },
@@ -124,7 +127,12 @@
             "type": "string"
           }
         },
-        "required": ["id", "name", "type", "stateTopic"]
+        "required": [
+          "id",
+          "name",
+          "type",
+          "stateTopic"
+        ]
       }
     }
   },

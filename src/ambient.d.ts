@@ -41,8 +41,6 @@ declare module 'matterbridge' {
   export const occupancySensor: any;
   export const coverDevice: any;
   export const fanDevice: any;
-  export const aggregator: any;
-  export const bridgedNode: any;
   export const powerSource: any;
   export const thermostat: any;
 
